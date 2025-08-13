@@ -1,0 +1,32 @@
+{
+  "project_info": {
+    "project_number": "754477142627",
+    "project_id": "bees-gh-app",
+    "storage_bucket": "bees-gh-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:754477142627:android:dab3b235a5049880f25e56",
+        "android_client_info": {
+          "package_name": "com.example.bees_gh_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCFi50h5Qf9cDw-iG4EFwqpjY0HvRYyj-o"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
+
+
+
