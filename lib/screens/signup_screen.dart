@@ -1252,7 +1252,7 @@ class _SignupScreenState extends State<SignupScreen> {
       labelText: label,
       prefixIcon: Icon(icon, color: _deepBrown),
       filled: true,
-      fillColor: Colors.white.withOpacity(0.85),
+      fillColor: Colors.white.withOpacity(1.0),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
@@ -1274,7 +1274,7 @@ class _SignupScreenState extends State<SignupScreen> {
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [_honeyStart, _honeyEnd],
+          colors: [Color(0xFFFFC107), Color(0xFFFFA000)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),

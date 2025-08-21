@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
@@ -10,7 +11,8 @@ class BeeChampionProductsPage extends StatefulWidget {
   State<BeeChampionProductsPage> createState() => _BeeChampionProductsPageState();
 }
 
-class _BeeChampionProductsPageState extends State<BeeChampionProductsPage> {
+class _BeeChampionProductsPageState extends State<BeeChampionProductsPage>
+    with SingleTickerProviderStateMixin {
   String mode = 'Random';
   final TextEditingController phoneOrIdController = TextEditingController();
   final TextEditingController nameController = TextEditingController();
@@ -25,19 +27,35 @@ class _BeeChampionProductsPageState extends State<BeeChampionProductsPage> {
 
   List<Map<String, dynamic>> productList = [];
 
+  AnimationController? _animController;
+  Animation<double>? _fadeAnim;
+  Animation<Offset>? _slideAnim;
+
   @override
   void initState() {
     super.initState();
-    quantityController.addListener(() {
-      setState(() {});
-    });
+
+    quantityController.addListener(() => setState(() {}));
 
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       loggedInBeeChampion = user.uid;
     }
 
-    // 🟡 Fetch products from Firestore
+    // Safe animation initialization
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    _fadeAnim = CurvedAnimation(parent: _animController!, curve: Curves.easeInOut);
+    _slideAnim = Tween<Offset>(
+      begin: const Offset(0, 0.1),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _animController!, curve: Curves.easeOut));
+
+    _animController!.forward();
+
+    // Fetch products from Firestore
     FirebaseFirestore.instance.collection('products').snapshots().listen((snapshot) {
       setState(() {
         productList = snapshot.docs.map((doc) {
@@ -49,6 +67,12 @@ class _BeeChampionProductsPageState extends State<BeeChampionProductsPage> {
         }).toList();
       });
     });
+  }
+
+  @override
+  void dispose() {
+    _animController?.dispose();
+    super.dispose();
   }
 
   void _searchSellerOrTrainee() async {
@@ -65,10 +89,8 @@ class _BeeChampionProductsPageState extends State<BeeChampionProductsPage> {
         final data = sellerSnapshot.docs.first.data();
         nameController.text = data['name'] ?? '';
       } else {
-        nameController.text = '';
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text("Seller not found. Enter name manually."),
-        ));
+        nameController.clear();
+        _showSnackBar("Seller not found. Enter name manually.");
       }
     } else {
       final userSnapshot = await FirebaseFirestore.instance
@@ -81,9 +103,7 @@ class _BeeChampionProductsPageState extends State<BeeChampionProductsPage> {
         nameController.text = "${data['first_name']} ${data['last_name']}";
         phoneOrIdController.text = data['phone'] ?? '';
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text("Trainee not found with given ID."),
-        ));
+        _showSnackBar("Trainee not found with given ID.");
       }
     }
   }
@@ -100,12 +120,8 @@ class _BeeChampionProductsPageState extends State<BeeChampionProductsPage> {
     setState(() {});
   }
 
-
-  void _showSnackBar(String message){
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message),
-      )
-    );
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _saveTransaction() async {
@@ -117,7 +133,6 @@ class _BeeChampionProductsPageState extends State<BeeChampionProductsPage> {
     final momoTxnId = momoTransactionController.text.trim();
     final selectedDate = saleDate;
     final sellerType = mode;
-
 
     if (sellerName.isEmpty || phoneNumber.isEmpty || product.isEmpty || quantity <= 0) {
       _showSnackBar("Please fill all required fields.");
@@ -144,7 +159,6 @@ class _BeeChampionProductsPageState extends State<BeeChampionProductsPage> {
         'timestamp': FieldValue.serverTimestamp(),
       };
 
-
       if (sellerType == 'Random') {
         final sellerSnap = await FirebaseFirestore.instance
             .collection('sellers')
@@ -168,139 +182,245 @@ class _BeeChampionProductsPageState extends State<BeeChampionProductsPage> {
     }
   }
 
-
+  Widget _buildGlassCard({required Widget child}) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.brown.shade200.withOpacity(0.3),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white.withOpacity(0.3)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 12,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: child,
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Record Purchase'), automaticallyImplyLeading: false,),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Card(
-              elevation: 4,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  children: [
-                    Center(
-                      child: ToggleButtons(
-                        isSelected: [mode == 'Random', mode == 'Trainee'],
-                        onPressed: (index) {
-                          setState(() => mode = index == 0 ? 'Random' : 'Trainee');
-                        },
-                        children: const [Text("Random"), Text("Trainee")],
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        title: const Text(
+          "Record Purchase",
+          style: TextStyle(
+            color: Color(0xFFFFD54F),
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        backgroundColor: Colors.brown[800],
+        elevation: 0,
+        centerTitle: true,
+        iconTheme: const IconThemeData(color: Color(0xFFFFD54F)),
+      ),
+      body: (_fadeAnim == null || _slideAnim == null)
+          ? const Center(child: CircularProgressIndicator())
+          : Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.amber.shade50, Colors.amber.shade100],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: FadeTransition(
+          opacity: _fadeAnim!,
+          child: SlideTransition(
+            position: _slideAnim!,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _buildGlassCard(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        children: [
+                          Center(
+                            child: ToggleButtons(
+                              borderRadius: BorderRadius.circular(20),
+                              constraints:
+                              const BoxConstraints(minHeight: 40, minWidth: 100),
+                              isSelected: [mode == 'Random', mode == 'Trainee'],
+                              onPressed: (index) {
+                                setState(() => mode = index == 0 ? 'Random' : 'Trainee');
+                              },
+                              borderColor: Colors.brown[800],
+                              color: Colors.brown[800],
+                              selectedColor: const Color(0xFFFFD54F),
+                              fillColor: Colors.brown[800],
+                              children: const [
+                                Padding(
+                                    padding: EdgeInsets.symmetric(horizontal: 12),
+                                    child: Text("Random")),
+                                Padding(
+                                    padding: EdgeInsets.symmetric(horizontal: 12),
+                                    child: Text("Trainee")),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          TextField(
+                            controller: phoneOrIdController,
+                            keyboardType: TextInputType.phone,
+                            decoration: InputDecoration(
+                              labelText: mode == 'Random'
+                                  ? 'Phone Number'
+                                  : 'Trainee ID',
+                              labelStyle: TextStyle(color: Colors.brown[800]),
+                              suffixIcon: IconButton(
+                                icon: const Icon(Icons.search),
+                                onPressed: _searchSellerOrTrainee,
+                              ),
+                            ),
+                            style: TextStyle(color: Colors.brown[800]),
+                          ),
+                          const SizedBox(height: 12),
+                          TextField(
+                            controller: nameController,
+                            decoration: InputDecoration(
+                                labelText: 'Name of Seller',
+                              labelStyle: TextStyle(color: Colors.brown[800])
+                            ),
+                            style: TextStyle(color: Colors.brown[800]),
+                          ),
+
+                          const SizedBox(height: 12),
+                          DropdownButtonFormField<String>(
+                            value:
+                            selectedProduct.isNotEmpty ? selectedProduct : null,
+                            items: productList.map((product) {
+                              return DropdownMenuItem<String>(
+                                value: product['name'],
+                                child: Text(product['name']),
+                              );
+                            }).toList(),
+                            onChanged: (val) {
+                              setState(() {
+                                selectedProduct = val!;
+                                final matchedProduct = productList.firstWhere(
+                                      (p) => p['name'] == val,
+                                  orElse: () => {},
+                                );
+                                unitPriceController.text =
+                                    matchedProduct['unit_price'].toString();
+                              });
+                            },
+                            decoration:
+                            const InputDecoration(
+                                labelText: 'Product',
+                            ),
+
+                          ),
+                          const SizedBox(height: 12),
+                          TextField(
+                            controller: quantityController,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                                labelText: 'Quantity (kg)'),
+                          ),
+                          const SizedBox(height: 12),
+                          TextField(
+                            controller: unitPriceController,
+                            readOnly: true,
+                            decoration: const InputDecoration(
+                                labelText: 'Unit Price (GHS)'),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            'Total Price: GHS ${_calculateTotal()}',
+                            style: const TextStyle(fontSize: 16),
+                          ),
+                          const SizedBox(height: 12),
+                          DropdownButtonFormField<String>(
+                            value: paymentStatus,
+                            onChanged: (val) {
+                              setState(() => paymentStatus = val!);
+                            },
+                            items: const [
+                              DropdownMenuItem(
+                                  value: 'Paid', child: Text('Paid')),
+                              DropdownMenuItem(
+                                  value: 'Pending', child: Text('Pending')),
+                            ],
+                            decoration: const InputDecoration(
+                                labelText: 'Payment Status'),
+                          ),
+                          if (paymentStatus == 'Paid')
+                            TextField(
+                              controller: momoTransactionController,
+                              decoration: InputDecoration(
+                                  labelText: 'Momo Transaction ID',
+                                labelStyle: TextStyle(color: Colors.brown[800]),
+                              ),
+                            ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Text(
+                                  "Date: ${DateFormat('yyyy-MM-dd').format(saleDate)}"),
+                              const Spacer(),
+                              ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.brown,
+                                ),
+                                onPressed: () async {
+                                  final picked = await showDatePicker(
+                                    context: context,
+                                    initialDate: saleDate,
+                                    firstDate: DateTime(2020),
+                                    lastDate: DateTime.now(),
+                                  );
+                                  if (picked != null) {
+                                    setState(() => saleDate = picked);
+                                  }
+                                },
+                                child: Text("Pick Date", style: TextStyle(color: Colors.white), ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          Row(
+                            mainAxisAlignment:
+                            MainAxisAlignment.spaceBetween,
+                            children: [
+                              ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.brown,
+                                ),
+                                onPressed: _clearForm,
+                                child: Text('Clear', style: TextStyle(color: Colors.white),),
+                              ),
+                              ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.brown,
+                                ),
+                                onPressed: _saveTransaction,
+                                child: const Text('Save', style: TextStyle(color: Colors.white),),
+                              ),
+                            ],
+                          )
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 14),
-                    TextField(
-                      controller: phoneOrIdController,
-                      keyboardType: TextInputType.phone,
-                      decoration: InputDecoration(
-                        labelText: mode == 'Random' ? 'Phone Number' : 'Trainee ID',
-                        suffixIcon: IconButton(
-                          icon: const Icon(Icons.search),
-                          onPressed: _searchSellerOrTrainee,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: nameController,
-                      decoration: const InputDecoration(labelText: 'Name of Seller'),
-                    ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      value: selectedProduct.isNotEmpty ? selectedProduct : null,
-                      items: productList.map((product) {
-                        return DropdownMenuItem<String>(
-                          value: product['name'],
-                          child: Text(product['name']),
-                        );
-                      }).toList(),
-                      onChanged: (val) {
-                        setState(() {
-                          selectedProduct = val!;
-                          final matchedProduct = productList.firstWhere((p) => p['name'] == val, orElse: () => {});
-                          unitPriceController.text = matchedProduct['unit_price'].toString();
-                        });
-                      },
-                      decoration: const InputDecoration(labelText: 'Product'),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: quantityController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'Quantity (kg)'),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: unitPriceController,
-                      readOnly: true,
-                      decoration: const InputDecoration(labelText: 'Unit Price (GHS)'),
-                    ),
-                    const SizedBox(height: 12),
-                    Text('Total Price: GHS ${_calculateTotal()}', style: const TextStyle(fontSize: 16)),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      value: paymentStatus,
-                      onChanged: (val) {
-                        setState(() => paymentStatus = val!);
-                      },
-                      items: const [
-                        DropdownMenuItem(value: 'Paid', child: Text('Paid')),
-                        DropdownMenuItem(value: 'Pending', child: Text('Pending')),
-                      ],
-                      decoration: const InputDecoration(labelText: 'Payment Status'),
-                    ),
-                    if (paymentStatus == 'Paid')
-                      TextField(
-                        controller: momoTransactionController,
-                        decoration: const InputDecoration(labelText: 'Momo Transaction ID'),
-                      ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Text("Date: ${DateFormat('yyyy-MM-dd').format(saleDate)}"),
-                        const Spacer(),
-                        ElevatedButton(
-                          onPressed: () async {
-                            final picked = await showDatePicker(
-                              context: context,
-                              initialDate: saleDate,
-                              firstDate: DateTime(2020),
-                              lastDate: DateTime.now(),
-                            );
-                            if (picked != null) {
-                              setState(() => saleDate = picked);
-                            }
-                          },
-                          child: const Text("Pick Date"),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        ElevatedButton(
-                          onPressed: _clearForm,
-                          child: const Text('Clear'),
-                        ),
-                        ElevatedButton(
-                          onPressed: _saveTransaction,
-                          child: const Text('Save'),
-                        ),
-                      ],
-                    )
-                  ],
-                ),
+                  ),
+                ],
               ),
-            )
-          ],
+            ),
+          ),
         ),
       ),
     );

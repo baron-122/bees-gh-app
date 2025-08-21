@@ -89,11 +89,6 @@ class _BeeChampionLandingPageState extends State<BeeChampionLandingPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(
-        title: const Text('Bee Champion Page'),
-        automaticallyImplyLeading: false,
-        backgroundColor: Colors.amber[700],
-      ),
       body: _pages[_selectedIndex],
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
